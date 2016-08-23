@@ -557,3 +557,29 @@ func TestUnmarshalingBadInput(t *testing.T) {
 		}
 	}
 }
+
+// TestMarshalPanics reproduces the problem that jsonpb panics if you pass it
+// a pointer to a struct which embeds a proto.Message.
+// This is problematic because a Go type switch would recognize such a struct
+// as "proto.Message". See below.
+func TestMarshalPanics(t *testing.T) {
+	pb := struct {
+		unexported string
+		proto.Message
+	}{
+		"unexported field",
+		simpleObject,
+	}
+	var pbPointer interface{} = &pb
+
+	switch pb := pbPointer.(type) {
+	case proto.Message:
+		m := Marshaler{EnumsAsInts: true, EmitDefaults: true, Indent: "  ", OrigName: true}
+		_, err := m.MarshalToString(pb)
+		if err != nil {
+			t.Fatalf("failed to marshal '%v': %v", pb, err)
+		}
+	default:
+		t.Fatalf("struct with proto.Message as anonymous field not recognized: %#v", pb)
+	}
+}
